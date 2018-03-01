@@ -144,6 +144,70 @@ fit.stan = sampling(stanDso, data=lStanData, iter=500, chains=2,
                            'rGroupsJitter1', 
                            'rGroupsJitter2',
                            'rGroupsJitter3'),
-                    cores=2, init=initf)#, control=list(adapt_delta=0.99, max_treedepth = 15))
-save(fit.stan, file='temp/fit.stan.norm.rds')
-gc(reset = T)
+                    cores=2)#, init=initf)#, control=list(adapt_delta=0.99, max_treedepth = 15))
+
+print(fit.stan, c('betas', 'sigmaRan1', 'sigmaRan2', 'sigmaRan3', 'iSize'), digits=3)
+traceplot(fit.stan, 'betas')
+traceplot(fit.stan, 'sigmaRan2')
+print(fit.stan, 'rGroupsJitter1')
+
+## get the coefficient of interest - Modules in our case from the random coefficients section
+mCoef = extract(fit.stan)$rGroupsJitter1
+dim(mCoef)
+# ## get the intercept at population level
+iIntercept = as.numeric(extract(fit.stan)$betas)
+## add the intercept to each random effect variable, to get the full coefficient
+mCoef = sweep(mCoef, 1, iIntercept, '+')
+
+## function to calculate statistics for differences between coefficients
+getDifference = function(ivData, ivBaseline){
+  stopifnot(length(ivData) == length(ivBaseline))
+  # get the difference vector
+  d = ivData - ivBaseline
+  # get the z value
+  z = mean(d)/sd(d)
+  # get 2 sided p-value
+  p = pnorm(-abs(mean(d)/sd(d)))*2
+  return(list(z=z, p=p))
+}
+
+## split the data into the comparisons required
+d = data.frame(cols=1:ncol(mCoef), mods=levels(dfData$Coef))
+## split this factor into sub factors
+f = strsplit(as.character(d$mods), ':')
+d = cbind(d, do.call(rbind, f))
+head(d)
+colnames(d) = c(colnames(d)[1:2], c('fBatch', 'ind'))
+d$split = factor(d$ind)
+
+levels(d$fBatch)
+## get a p-value for each comparison
+l = tapply(d$cols, d$split, FUN = function(x, base='Control', deflection='IL2217') {
+  c = x
+  names(c) = as.character(d$fBatch[c])
+  dif = getDifference(ivData = mCoef[,c[deflection]], ivBaseline = mCoef[,c[base]])
+  r = data.frame(ind= as.character(d$ind[c[base]]), coef.base=mean(mCoef[,c[base]]), 
+                 coef.deflection=mean(mCoef[,c[deflection]]), zscore=dif$z, pvalue=dif$p)
+  r$difference = r$coef.deflection - r$coef.base
+  #return(format(r, digi=3))
+  return(r)
+})
+
+dfResults = do.call(rbind, l)
+dfResults$adj.P.Val = p.adjust(dfResults$pvalue, method='BH')
+
+### plot the results
+dfResults$logFC = dfResults$difference
+dfResults$P.Value = dfResults$pvalue
+dfResults$SYMBOL = as.character(rownames(dfResults))
+
+## produce the plots 
+f_plotVolcano(dfResults, 'Stan 2M vs 12M', fc.lim=c(-2.5, 2.5))
+
+m = tapply(dfData$values, dfData$ind, mean)
+i = match(rownames(dfResults), names(m))
+m = m[i]
+identical(names(m), rownames(dfResults))
+plotMeanFC(log(m), dfResults, 0.1, 'Stan 2M vs 12M')
+
+
