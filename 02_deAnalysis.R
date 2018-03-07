@@ -1,6 +1,6 @@
 # File: 02_deAnalysis.R
 # Auth: umar.niazi@kcl.ac.uk
-# DESC: quality checks on the count matrix with covariates
+# DESC: Modelling and selecting DE genes
 # Date: 01/03/2018
 
 ## load the data
