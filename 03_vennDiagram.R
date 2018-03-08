@@ -1,8 +1,9 @@
 # File: 03_vennDiagram.R
 # Auth: umar.niazi@kcl.ac.uk
-# DESC: using the results for each contrast, create venn diagrams
+# DESC: using the results for each contrast, create venn diagrams and some plots
 # Date: 07/03/2018
 
+source('header.R')
 
 lFiles = list.files('results/', pattern='DEAnalysis*', full.names = T, ignore.case = T)
 
@@ -19,6 +20,16 @@ ldfData = lapply(ldfData, function(df){
 })
 
 sapply(ldfData, function(df) identical(rownames(df), rn))
+
+cvTitle = gsub('results//DEAnalysis(\\w+).xls', '\\1', names(ldfData))
+
+for (i in seq_along(cvTitle)){
+  df = ldfData[[i]]
+  hist(df$logFC, xlab='Log Fold Change', ylab='', main=paste('Fold Changes ', cvTitle[i], sep=''))
+  f_plotVolcano(df, cvTitle[i], 0.01, fc.lim=range(df$logFC))
+}
+
+
 
 ## select significant genes
 dfContrast1.sub = ldfData[[1]][ldfData[[1]]$adj.P.Val < 0.01,]
