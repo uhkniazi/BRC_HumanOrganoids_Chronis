@@ -38,4 +38,4 @@ vignettes/*.pdf
 temp/
 dataExternal/
 results/
-
+*.rds
