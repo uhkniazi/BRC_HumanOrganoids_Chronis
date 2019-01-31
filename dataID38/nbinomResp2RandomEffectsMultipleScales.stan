@@ -31,8 +31,8 @@ transformed parameters {
 }
 model {
   //real sigmaRan1_expanded[Nclusters1]; 
-  sigmaRan1 ~ cauchy(0, 1);
-  sigmaRan2 ~ cauchy(0, 1);
+  sigmaRan1 ~ normal(0, 1);
+  sigmaRan2 ~ normal(0, 1);
   // random effects sample
   //sigmaRan1_expanded = sigmaRan1[NBatchMap1];
   rGroupsJitter1 ~ normal(0, sigmaRan1);

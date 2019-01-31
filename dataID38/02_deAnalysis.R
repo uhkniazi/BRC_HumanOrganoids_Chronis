@@ -68,7 +68,7 @@ dfData.bk = dfData
 mData.norm = round(mData.norm, 0)
 
 set.seed(123)
-i = sample(1:nrow(mData.norm), 300, replace = F)
+i = sample(1:nrow(mData.norm), 150, replace = F)
 dfData = data.frame(t(mData.norm[i,]))
 
 #dfData = data.frame(t(mData.norm))
@@ -84,10 +84,10 @@ dfData = dfData[order(dfData$Coef, dfData$Coef.adj1), ]
 str(dfData)
 
 # # setup the model
-# library(lme4)
-# fit.lme1 = glmer.nb(values ~ 1 + (1 | Coef) + (1 | Coef.adj1), data=dfData)
-# summary(fit.lme1)
-# ran = ranef(fit.lme1, condVar=F)
+library(lme4)
+fit.lme1 = glmer.nb(values ~ 1 + (1 | Coef) + (1 | Coef.adj1), data=dfData)
+summary(fit.lme1)
+ran = ranef(fit.lme1, condVar=F)
 # 
 # plot(log(fitted(fit.lme1)), resid(fit.lme1), pch=20, cex=0.7)
 # lines(lowess(log(fitted(fit.lme1)), resid(fit.lme1)), col=2)
