@@ -11,37 +11,28 @@ db = dbConnect(MySQL(), user='rstudio', password='12345', dbname='Projects', hos
 dbListTables(db)
 
 # select the right table using data and project id
-g_did = 25
+g_did = 38
 dbListFields(db, 'MetaFile')
 
-dfFiles = dbGetQuery(db, 'select * from MetaFile where idData=25')
+dfFiles = dbGetQuery(db, 'select * from MetaFile where idData=38')
 
 dfFiles
 
 ## load the 2 files
 n = paste0(dfFiles$location, dfFiles$name)
 dfCovariates = read.csv(n[1], header=T)
-dfData = read.csv(n[2], header=T, row.names=1, sep = '\t')
+dfData = read.csv(n[2], header=T, row.names=1, sep = ',')
 
 dim(dfCovariates)
 dim(dfData)
 
 colnames(dfData)
 str(dfCovariates)
-table(as.character(dfCovariates$SampleName) %in% colnames(dfData))
+table(as.character(dfCovariates$SampleID) %in% colnames(dfData))
 
-## drop the outlier sample according to first pass analysis
-## IL2217_2
-dfCovariates = dfCovariates[!as.character(dfCovariates$SampleName) == 'IL2217_2',]
-dfData = dfData[,!colnames(dfData) %in% 'IL2217_2']
-i = match(as.character(dfCovariates$SampleName), colnames(dfData))
-
-## there is a discrepency where we have some samples duplicated in the covariates table
-## this is due to the those samples having multiple lanes but being merged at the count table
-## after doing first pass analysis, drop these duplicated covariates
-i = match(colnames(dfData), as.character(dfCovariates$SampleName))
+i = match(colnames(dfData), as.character(dfCovariates$SampleID))
 dfCovariates = dfCovariates[i,]
-identical(as.character(dfCovariates$SampleName), colnames(dfData))
+identical(as.character(dfCovariates$SampleID), colnames(dfData))
 
 ## first normalise the data
 mData = as.matrix(dfData)
@@ -53,53 +44,48 @@ table( i < 3)
 mData = mData[!(i< 3),]
 dim(mData)
 
+ivProb = apply(mData, 1, function(inData) {
+  inData[is.na(inData) | !is.finite(inData) | inData < 1 ] = 0
+  inData = as.logical(inData)
+  lData = list('success'=sum(inData), fail=sum(!inData))
+  return(mean(rbeta(1000, lData$success + 0.5, lData$fail + 0.5)))
+})
+
+hist(ivProb)
+
+table(ivProb < 0.4)
+
 library(DESeq2)
 sf = estimateSizeFactorsForMatrix(mData)
 mData.norm = sweep(mData, 2, sf, '/')
 
-# ## duplicate the missing samples to make even with covariates
-# mData = mData[,i]
-# dim(mData)
-# mData.norm = mData.norm[,i]
-
-#colnames(mData) = gsub(pattern = '\\.\\d', '', colnames(mData))
-identical(colnames(mData), as.character(dfCovariates$SampleName))
-identical(colnames(mData.norm), as.character(dfCovariates$SampleName))
-
-# set the covariates
-dfCovariates$PatientID = factor(dfCovariates$PatientID)
-# There are two main clusters forming:
-# Cluster 1 - patients from groups 1 and 2
-# Cluster 2 - patients from groups 3 and 4
-f = rep('Cluster2', times=nrow(dfCovariates))
-f[dfCovariates$PatientID %in% c('1', '2')] = 'Cluster1'
-dfCovariates$Clusters = factor(f)
-str(dfCovariates)
+identical(colnames(mData), as.character(dfCovariates$SampleID))
+identical(colnames(mData.norm), as.character(dfCovariates$SampleID))
 ## perform DE analysis
 dfData.bk = dfData
 
 ## delete sample section after testing
 mData.norm = round(mData.norm, 0)
-# set.seed(123)
-# i = sample(1:nrow(mData.norm), 100, replace = F)
-#dfData = data.frame(t(mData.norm[i,]))
 
-dfData = data.frame(t(mData.norm))
+set.seed(123)
+i = sample(1:nrow(mData.norm), 30, replace = F)
+dfData = data.frame(t(mData.norm[i,]))
+
+#dfData = data.frame(t(mData.norm))
 dfData = stack(dfData)
-dfData$fBatch = dfCovariates$Treatment
-dfData$fAdjust1 = dfCovariates$PatientID
-dfData$fAdjust2 = dfCovariates$Clusters
+dfData$fBatch = dfCovariates$Group
+dfData$fAdjust1 = dfCovariates$Donor
+
 dfData$Coef = factor(dfData$fBatch:dfData$ind)
 dfData$Coef.adj1 = factor(dfData$fAdjust1:dfData$ind)
-dfData$Coef.adj2 = factor(dfData$fAdjust2:dfData$ind)
 
 dfData = droplevels.data.frame(dfData)
-dfData = dfData[order(dfData$Coef, dfData$Coef.adj1, dfData$Coef.adj2), ]
+dfData = dfData[order(dfData$Coef, dfData$Coef.adj1), ]
 str(dfData)
 
-## setup the model
+# # setup the model
 # library(lme4)
-# fit.lme1 = glmer.nb(values ~ 1 + (1 | Coef) + (1 | Coef.adj1) + (1 | Coef.adj2), data=dfData)
+# fit.lme1 = glmer.nb(values ~ 1 + (1 | Coef) + (1 | Coef.adj1), data=dfData)
 # summary(fit.lme1)
 # ran = ranef(fit.lme1, condVar=F)
 # 
@@ -111,48 +97,51 @@ library(rstan)
 rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
 
-stanDso = rstan::stan_model(file='nbinomResp3RandomEffects.stan')
+stanDso = rstan::stan_model(file='nbinomResp2RandomEffectsMultipleScales.stan')
 
-# library(MASS)
-# s = max(1, fitdistr(dfData$values, 'negative binomial')$estimate['size'])
 ## calculate hyperparameters for variance of coefficients
-l = gammaShRaFromModeSD(sd(log(dfData$values+0.5)), 2*sd(log(dfData$values+0.5)))
-# # ## set initial values
-# ran = ranef(fit.lme1)
-# r1 = ran$Coef
-# r2 = ran$Coef.adj1
-# r3 = ran$Coef.adj2
-# 
-# initf = function(chain_id = 1) {
-#   list(sigmaRan1 = 0.5, sigmaRan2=0.5, sigmaRan3=2, rGroupsJitter1=r1, rGroupsJitter2=r2,
-#        rGroupsJitter3=r3, iSize=s)
-# }
+#l = gammaShRaFromModeSD(sd(log(dfData$values+0.5)), 2*sd(log(dfData$values+0.5)))
+# ## set initial values
+#ran = ranef(fit.lme1)
+r1 = rep(0, nlevels(dfData$Coef))
+#r2 = rep(0, nlevels(dfData$Coef.adj1))
+#r3 = rep(0.01, nlevels(dfData$ind))
 
-### try a t model without mixture
+initf = function(chain_id = 1) {
+  list(sigmaRan1 = 0.1, rGroupsJitter1=r1)
+}
+
+## subset the data to get the second level of nested parameters
+## this is done to avoid loops in the stan script to map the scale parameters
+## of each ind/gene to the respective set of coefficients for jitters
+#d = dfData[!duplicated(dfData$Coef), ]
+
 lStanData = list(Ntotal=nrow(dfData), Nclusters1=nlevels(dfData$Coef),
-                 Nclusters2=nlevels(dfData$Coef.adj1),
-                 Nclusters3=nlevels(dfData$Coef.adj2),
+                 #Nclusters2=nlevels(dfData$Coef.adj1),
+                 #NScaleBatches1 = nlevels(dfData$ind), # to add a separate scale term for each gene
+                 Nsizes=nlevels(dfData$ind),
                  NgroupMap1=as.numeric(dfData$Coef),
-                 NgroupMap2=as.numeric(dfData$Coef.adj1),
-                 NgroupMap3=as.numeric(dfData$Coef.adj2),
-                 Ncol=1, 
-                 y=dfData$values, 
-                 gammaShape=l$shape, gammaRate=l$rate,
-                 intercept = mean(log(dfData$values+0.5)), intercept_sd= sd(log(dfData$values+0.5))*3)
+                 #NgroupMap2=as.numeric(dfData$Coef.adj1),
+                 #NBatchMap1=as.numeric(d$ind), # this is where we use the second level mapping
+                 NsizeMap=as.numeric(dfData$ind),
+                 y=dfData$values) 
+                 #gammaShape=l$shape, gammaRate=l$rate)
 
-fit.stan = sampling(stanDso, data=lStanData, iter=500, chains=3, 
-                    pars=c('sigmaRan1', 'sigmaRan2', 'sigmaRan3', 'betas',
-                           'iSize',  
-                           'rGroupsJitter1', 
-                           'rGroupsJitter2',
-                           'rGroupsJitter3'),
-                    cores=3)#, init=initf)#, control=list(adapt_delta=0.99, max_treedepth = 15))
-save(fit.stan, file='temp/fit.stan.nb_5March.rds')
 
-print(fit.stan, c('betas', 'sigmaRan1', 'sigmaRan2', 'sigmaRan3', 'iSize'), digits=3)
+
+fit.stan = sampling(stanDso, data=lStanData, iter=2000, chains=4,
+                    pars=c('sigmaRan1', #'sigmaRan2',
+                           'iSize', #'mu',
+                           'rGroupsJitter1'),
+                    cores=4, init=initf)#, control=list(adapt_delta=0.99, max_treedepth = 11))
+save(fit.stan, file='temp/fit.stan.nb_test1.rds')
+
+print(fit.stan, c('sigmaRan1', 'iSize'), digits=3)
+print(fit.stan, c('rGroupsJitter1'))
 traceplot(fit.stan, 'betas')
-traceplot(fit.stan, 'sigmaRan1')
-print(fit.stan, 'rGroupsJitter1')
+traceplot(fit.stan, c('sigmaRan2'))
+traceplot(fit.stan, c('sigmaRan1'))
+
 
 ## get the coefficient of interest - Modules in our case from the random coefficients section
 mCoef = extract(fit.stan)$rGroupsJitter1
@@ -187,7 +176,7 @@ levels(d$fBatch)
 ## repeat this for each comparison
 
 ## get a p-value for each comparison
-l = tapply(d$cols, d$split, FUN = function(x, base='Control', deflection='TNFa') {
+l = tapply(d$cols, d$split, FUN = function(x, base='control', deflection='IL9') {
   c = x
   names(c) = as.character(d$fBatch[c])
   dif = getDifference(ivData = mCoef[,c[deflection]], ivBaseline = mCoef[,c[base]])
