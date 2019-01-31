@@ -68,7 +68,7 @@ dfData.bk = dfData
 mData.norm = round(mData.norm, 0)
 
 set.seed(123)
-i = sample(1:nrow(mData.norm), 30, replace = F)
+i = sample(1:nrow(mData.norm), 300, replace = F)
 dfData = data.frame(t(mData.norm[i,]))
 
 #dfData = data.frame(t(mData.norm))
@@ -108,7 +108,7 @@ r2 = rep(0, nlevels(dfData$Coef.adj1))
 #r3 = rep(0.01, nlevels(dfData$ind))
 
 initf = function(chain_id = 1) {
-  list(sigmaRan1 = 0.1, rGroupsJitter1=r1, rGroupsJitter2=r2)
+  list(sigmaRan1 = 0.01, rGroupsJitter1=r1, rGroupsJitter2=r2, sigmaRan2=0.01)
 }
 
 ## subset the data to get the second level of nested parameters
@@ -134,7 +134,7 @@ fit.stan = sampling(stanDso, data=lStanData, iter=2000, chains=4,
                            'iSize', #'mu',
                            'rGroupsJitter1'),
                     cores=4, init=initf)#, control=list(adapt_delta=0.99, max_treedepth = 11))
-save(fit.stan, file='temp/fit.stan.nb_test1.rds')
+save(fit.stan, file='temp/fit.stan.nb_test.rds')
 
 print(fit.stan, c('sigmaRan1', 'sigmaRan2', 'iSize'), digits=3)
 print(fit.stan, c('rGroupsJitter1'))
