@@ -104,11 +104,11 @@ stanDso = rstan::stan_model(file='nbinomResp2RandomEffectsMultipleScales.stan')
 # ## set initial values
 #ran = ranef(fit.lme1)
 r1 = rep(0, nlevels(dfData$Coef))
-#r2 = rep(0, nlevels(dfData$Coef.adj1))
+r2 = rep(0, nlevels(dfData$Coef.adj1))
 #r3 = rep(0.01, nlevels(dfData$ind))
 
 initf = function(chain_id = 1) {
-  list(sigmaRan1 = 0.1, rGroupsJitter1=r1)
+  list(sigmaRan1 = 0.1, rGroupsJitter1=r1, rGroupsJitter2=r2)
 }
 
 ## subset the data to get the second level of nested parameters
@@ -117,11 +117,11 @@ initf = function(chain_id = 1) {
 #d = dfData[!duplicated(dfData$Coef), ]
 
 lStanData = list(Ntotal=nrow(dfData), Nclusters1=nlevels(dfData$Coef),
-                 #Nclusters2=nlevels(dfData$Coef.adj1),
+                 Nclusters2=nlevels(dfData$Coef.adj1),
                  #NScaleBatches1 = nlevels(dfData$ind), # to add a separate scale term for each gene
                  Nsizes=nlevels(dfData$ind),
                  NgroupMap1=as.numeric(dfData$Coef),
-                 #NgroupMap2=as.numeric(dfData$Coef.adj1),
+                 NgroupMap2=as.numeric(dfData$Coef.adj1),
                  #NBatchMap1=as.numeric(d$ind), # this is where we use the second level mapping
                  NsizeMap=as.numeric(dfData$ind),
                  y=dfData$values) 
@@ -130,13 +130,13 @@ lStanData = list(Ntotal=nrow(dfData), Nclusters1=nlevels(dfData$Coef),
 
 
 fit.stan = sampling(stanDso, data=lStanData, iter=2000, chains=4,
-                    pars=c('sigmaRan1', #'sigmaRan2',
+                    pars=c('sigmaRan1', 'sigmaRan2',
                            'iSize', #'mu',
                            'rGroupsJitter1'),
                     cores=4, init=initf)#, control=list(adapt_delta=0.99, max_treedepth = 11))
 save(fit.stan, file='temp/fit.stan.nb_test1.rds')
 
-print(fit.stan, c('sigmaRan1', 'iSize'), digits=3)
+print(fit.stan, c('sigmaRan1', 'sigmaRan2', 'iSize'), digits=3)
 print(fit.stan, c('rGroupsJitter1'))
 traceplot(fit.stan, 'betas')
 traceplot(fit.stan, c('sigmaRan2'))
@@ -176,7 +176,7 @@ levels(d$fBatch)
 ## repeat this for each comparison
 
 ## get a p-value for each comparison
-l = tapply(d$cols, d$split, FUN = function(x, base='control', deflection='IL9') {
+l = tapply(d$cols, d$split, FUN = function(x, base='control', deflection='IL13') {
   c = x
   names(c) = as.character(d$fBatch[c])
   dif = getDifference(ivData = mCoef[,c[deflection]], ivBaseline = mCoef[,c[base]])
