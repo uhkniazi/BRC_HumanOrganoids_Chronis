@@ -68,7 +68,7 @@ dfData.bk = dfData
 mData.norm = round(mData.norm, 0)
 
 set.seed(123)
-i = sample(1:nrow(mData.norm), 150, replace = F)
+i = sample(1:nrow(mData.norm), 600, replace = F)
 dfData = data.frame(t(mData.norm[i,]))
 
 #dfData = data.frame(t(mData.norm))
@@ -83,11 +83,11 @@ dfData = droplevels.data.frame(dfData)
 dfData = dfData[order(dfData$Coef, dfData$Coef.adj1), ]
 str(dfData)
 
-# # setup the model
-library(lme4)
-fit.lme1 = glmer.nb(values ~ 1 + (1 | Coef) + (1 | Coef.adj1), data=dfData)
-summary(fit.lme1)
-ran = ranef(fit.lme1, condVar=F)
+# # # setup the model
+# library(lme4)
+# fit.lme1 = glmer.nb(values ~ 1 + (1 | Coef) + (1 | Coef.adj1), data=dfData)
+# summary(fit.lme1)
+# ran = ranef(fit.lme1, condVar=F)
 # 
 # plot(log(fitted(fit.lme1)), resid(fit.lme1), pch=20, cex=0.7)
 # lines(lowess(log(fitted(fit.lme1)), resid(fit.lme1)), col=2)
@@ -100,48 +100,49 @@ options(mc.cores = parallel::detectCores())
 stanDso = rstan::stan_model(file='nbinomResp2RandomEffectsMultipleScales.stan')
 
 ## calculate hyperparameters for variance of coefficients
-#l = gammaShRaFromModeSD(sd(log(dfData$values+0.5)), 2*sd(log(dfData$values+0.5)))
-# ## set initial values
-#ran = ranef(fit.lme1)
-r1 = rep(0, nlevels(dfData$Coef))
-r2 = rep(0, nlevels(dfData$Coef.adj1))
-#r3 = rep(0.01, nlevels(dfData$ind))
-
-initf = function(chain_id = 1) {
-  list(sigmaRan1 = 0.01, rGroupsJitter1=r1, rGroupsJitter2=r2, sigmaRan2=0.01)
-}
+l = gammaShRaFromModeSD(sd(log(dfData$values+0.5)), 2*sd(log(dfData$values+0.5)))
+# # ## set initial values
+# ran = ranef(fit.lme1)
+# r1 = ran$Coef
+# r2 = ran$Coef.adj1
+# r3 = ran$Coef.adj2
+# 
+# initf = function(chain_id = 1) {
+#   list(sigmaRan1 = 1, sigmaRan2=1)
+# }
 
 ## subset the data to get the second level of nested parameters
 ## this is done to avoid loops in the stan script to map the scale parameters
 ## of each ind/gene to the respective set of coefficients for jitters
-#d = dfData[!duplicated(dfData$Coef), ]
+d = dfData[!duplicated(dfData$Coef), ]
 
 lStanData = list(Ntotal=nrow(dfData), Nclusters1=nlevels(dfData$Coef),
                  Nclusters2=nlevels(dfData$Coef.adj1),
-                 #NScaleBatches1 = nlevels(dfData$ind), # to add a separate scale term for each gene
+                 NScaleBatches1 = nlevels(dfData$ind), # to add a separate scale term for each gene
                  Nsizes=nlevels(dfData$ind),
                  NgroupMap1=as.numeric(dfData$Coef),
                  NgroupMap2=as.numeric(dfData$Coef.adj1),
-                 #NBatchMap1=as.numeric(d$ind), # this is where we use the second level mapping
+                 NBatchMap1=as.numeric(d$ind), # this is where we use the second level mapping
                  NsizeMap=as.numeric(dfData$ind),
-                 y=dfData$values) 
-                 #gammaShape=l$shape, gammaRate=l$rate)
+                 y=dfData$values, 
+                 gammaShape=l$shape, gammaRate=l$rate,
+                 intercept = mean(log(dfData$values+0.5)), intercept_sd= sd(log(dfData$values+0.5))*3)
 
+ptm = proc.time()
 
-
-fit.stan = sampling(stanDso, data=lStanData, iter=2000, chains=4,
+fit.stan = sampling(stanDso, data=lStanData, iter=600, chains=3,
                     pars=c('sigmaRan1', 'sigmaRan2',
-                           'iSize', #'mu',
+                           'iSize', 'mu',
                            'rGroupsJitter1'),
-                    cores=4, init=initf)#, control=list(adapt_delta=0.99, max_treedepth = 11))
-save(fit.stan, file='temp/fit.stan.nb_test.rds')
-
+                    cores=3)#, init=initf)#, control=list(adapt_delta=0.99, max_treedepth = 11))
+save(fit.stan, file='temp/fit.stan.nb_13Feb.rds')
+ptm.end = proc.time()
 print(fit.stan, c('sigmaRan1', 'sigmaRan2', 'iSize'), digits=3)
 print(fit.stan, c('rGroupsJitter1'))
-traceplot(fit.stan, 'betas')
 traceplot(fit.stan, c('sigmaRan2'))
-traceplot(fit.stan, c('sigmaRan1'))
-
+traceplot(fit.stan, c('sigmaRan1[1]'))
+traceplot(fit.stan, c('sigmaRan1[2]'))
+traceplot(fit.stan, c('rGroupsJitter1[1]', 'sigmaRan1[1]'))
 
 ## get the coefficient of interest - Modules in our case from the random coefficients section
 mCoef = extract(fit.stan)$rGroupsJitter1
