@@ -188,10 +188,10 @@ write.csv(dfMerged.c5, file='results/gsea_msigdb_c5_merged.xls')
 ## merge together into one dataframe
 # drop the group with most zeros
 table(dfMerged.c2$groups)
-dfMerged.c2.sub = dfMerged.c2#[dfMerged.c2$groups != 14,]
+dfMerged.c2.sub = dfMerged.c2[dfMerged.c2$groups != 4,]
 
 table(dfMerged.c5$groups)
-dfMerged.c5.sub = dfMerged.c5#[dfMerged.c5$groups != 7,]
+dfMerged.c5.sub = dfMerged.c5[dfMerged.c5$groups != 2,]
 
 dfMerged = rbind(dfMerged.c2.sub, dfMerged.c5.sub)
 dfMerged = droplevels.data.frame(dfMerged)
