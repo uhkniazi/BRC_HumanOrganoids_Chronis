@@ -1,7 +1,7 @@
 # File: 03_vennDiagram.R
 # Auth: umar.niazi@kcl.ac.uk
 # DESC: using the results for each contrast, create venn diagrams and some plots
-# Date: 07/03/2018
+# Date: 14/02/2019
 
 source('header.R')
 
@@ -34,15 +34,11 @@ for (i in seq_along(cvTitle)){
 ## select significant genes
 dfContrast1.sub = ldfData[[1]][ldfData[[1]]$adj.P.Val < 0.01,]
 dfContrast2.sub = ldfData[[2]][ldfData[[2]]$adj.P.Val < 0.01,]
-dfContrast3.sub = ldfData[[3]][ldfData[[3]]$adj.P.Val < 0.01,]
-dfContrast4.sub = ldfData[[4]][ldfData[[4]]$adj.P.Val < 0.01,]
-dfContrast5.sub = ldfData[[5]][ldfData[[5]]$adj.P.Val < 0.01,]
 
 library(VennDiagram)
 
 # create a list for overlaps
-lVenn = list(rownames(dfContrast1.sub), rownames(dfContrast2.sub), rownames(dfContrast3.sub), rownames(dfContrast4.sub),
-             rownames(dfContrast5.sub))
+lVenn = list(rownames(dfContrast1.sub), rownames(dfContrast2.sub))
 names(ldfData)
 names(lVenn) = gsub('results//DEAnalysis(\\w+)VsControl.xls', '\\1', names(ldfData))
 # calculate overlaps
@@ -58,26 +54,14 @@ dfContrast1.down = dfContrast1.sub[dfContrast1.sub$logFC < 0, ]
 dfContrast2.up = dfContrast2.sub[dfContrast2.sub$logFC > 0, ]
 dfContrast2.down = dfContrast2.sub[dfContrast2.sub$logFC < 0, ]
 
-dfContrast3.up = dfContrast3.sub[dfContrast3.sub$logFC > 0, ]
-dfContrast3.down = dfContrast3.sub[dfContrast3.sub$logFC < 0, ]
-
-dfContrast4.up = dfContrast4.sub[dfContrast4.sub$logFC > 0, ]
-dfContrast4.down = dfContrast4.sub[dfContrast4.sub$logFC < 0, ]
-
-dfContrast5.up = dfContrast5.sub[dfContrast5.sub$logFC > 0, ]
-dfContrast5.down = dfContrast5.sub[dfContrast5.sub$logFC < 0, ]
-
 # create a list for overlaps
 lVenn = list(rownames(dfContrast1.up), rownames(dfContrast1.down), 
-             rownames(dfContrast2.up), rownames(dfContrast2.down),
-             rownames(dfContrast3.up), rownames(dfContrast3.down),
-             rownames(dfContrast4.up), rownames(dfContrast4.down),
-             rownames(dfContrast5.up), rownames(dfContrast5.down))
+             rownames(dfContrast2.up), rownames(dfContrast2.down))
 
 cvTitle = gsub('results//DEAnalysis(\\w+)VsControl.xls', '\\1', names(ldfData))
 cvTitle.up = paste(cvTitle, 'up', sep='-')
 cvTitle.down = paste(cvTitle, 'down', sep='-')
-o = c(1, 6, 2, 7, 3, 8, 4, 9, 5, 10)
+o = c(1, 3, 2, 4)
 cvTitle = c(cvTitle.up, cvTitle.down)[o]
 names(lVenn) = cvTitle
 
