@@ -67,11 +67,11 @@ dfData.bk = dfData
 ## delete sample section after testing
 mData.norm = round(mData.norm, 0)
 
-set.seed(123)
-i = sample(1:nrow(mData.norm), 600, replace = F)
-dfData = data.frame(t(mData.norm[i,]))
+# set.seed(123)
+# i = sample(1:nrow(mData.norm), 600, replace = F)
+# dfData = data.frame(t(mData.norm[i,]))
 
-#dfData = data.frame(t(mData.norm))
+dfData = data.frame(t(mData.norm))
 dfData = stack(dfData)
 dfData$fBatch = dfCovariates$Group
 dfData$fAdjust1 = dfCovariates$Donor
@@ -130,12 +130,12 @@ lStanData = list(Ntotal=nrow(dfData), Nclusters1=nlevels(dfData$Coef),
 
 ptm = proc.time()
 
-fit.stan = sampling(stanDso, data=lStanData, iter=600, chains=3,
-                    pars=c('sigmaRan1', 'sigmaRan2',
-                           'iSize', 'mu',
-                           'rGroupsJitter1'),
-                    cores=3)#, init=initf)#, control=list(adapt_delta=0.99, max_treedepth = 11))
-save(fit.stan, file='temp/fit.stan.nb_13Feb.rds')
+# fit.stan = sampling(stanDso, data=lStanData, iter=600, chains=4,
+#                     pars=c('sigmaRan1', 'sigmaRan2',
+#                            'iSize', #'mu',
+#                            'rGroupsJitter1'),
+#                     cores=4)#, init=initf)#, control=list(adapt_delta=0.99, max_treedepth = 11))
+# save(fit.stan, file='temp/fit.stan.nb_13Feb.rds')
 ptm.end = proc.time()
 print(fit.stan, c('sigmaRan1', 'sigmaRan2', 'iSize'), digits=3)
 print(fit.stan, c('rGroupsJitter1'))
@@ -147,10 +147,10 @@ traceplot(fit.stan, c('rGroupsJitter1[1]', 'sigmaRan1[1]'))
 ## get the coefficient of interest - Modules in our case from the random coefficients section
 mCoef = extract(fit.stan)$rGroupsJitter1
 dim(mCoef)
-# ## get the intercept at population level
-iIntercept = as.numeric(extract(fit.stan)$betas)
-## add the intercept to each random effect variable, to get the full coefficient
-mCoef = sweep(mCoef, 1, iIntercept, '+')
+# # ## get the intercept at population level
+# iIntercept = as.numeric(extract(fit.stan)$betas)
+# ## add the intercept to each random effect variable, to get the full coefficient
+# mCoef = sweep(mCoef, 1, iIntercept, '+')
 
 ## function to calculate statistics for differences between coefficients
 getDifference = function(ivData, ivBaseline){
@@ -177,7 +177,7 @@ levels(d$fBatch)
 ## repeat this for each comparison
 
 ## get a p-value for each comparison
-l = tapply(d$cols, d$split, FUN = function(x, base='control', deflection='IL13') {
+l = tapply(d$cols, d$split, FUN = function(x, base='control', deflection='IL9') {
   c = x
   names(c) = as.character(d$fBatch[c])
   dif = getDifference(ivData = mCoef[,c[deflection]], ivBaseline = mCoef[,c[base]])
@@ -201,7 +201,8 @@ df = df[i,]
 dfResults$SYMBOL = df$SYMBOL
 identical(rownames(dfResults), df$ENSEMBL)
 ## produce the plots 
-f_plotVolcano(dfResults, 'TNFa vs Control', fc.lim=c(-2.5, 2.5))
+f_plotVolcano(dfResults, 'IL9 vs Control', fc.lim=c(-2.5, 2.5))
+f_plotVolcano(dfResults, 'IL9 vs Control', fc.lim=range(dfResults$logFC))
 
 m = tapply(dfData$values, dfData$ind, mean)
 i = match(rownames(dfResults), names(m))
@@ -210,18 +211,19 @@ identical(names(m), rownames(dfResults))
 plotMeanFC(log(m), dfResults, 0.01, 'TNFa vs Control')
 table(dfResults$adj.P.Val < 0.01)
 ## save the results 
-write.csv(dfResults, file='results/DEAnalysisTNFaVsControl.xls')
+write.csv(dfResults, file='results/DEAnalysisIL9VsControl.xls')
 
 
 
 ######### do a comparison with deseq2
-dfDesign = data.frame(Treatment = dfCovariates$Treatment, fAdjust1 = dfCovariates$PatientID, fAdjust2 = dfCovariates$Clusters,
+dfDesign = data.frame(Treatment = dfCovariates$Group, fAdjust1 = dfCovariates$Donor,
                       row.names=colnames(mData))
 
 oDseq = DESeqDataSetFromMatrix(mData, dfDesign, design = ~ Treatment + fAdjust1)
 oDseq = DESeq(oDseq)
 plotDispEsts(oDseq)
-oRes = results(oDseq, contrast=c('Treatment', 'TNFa', 'Control'))
+oRes = results(oDseq, contrast=c('Treatment', 'IL9', 'control'))
+plotMA(oRes)
 temp = as.data.frame(oRes)
 i = match(rownames(dfResults), rownames(temp))
 temp = temp[i,]
