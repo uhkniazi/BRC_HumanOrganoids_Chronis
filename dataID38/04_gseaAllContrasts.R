@@ -1,7 +1,7 @@
 # File: 04_gseaAllContrasts.R
 # Auth: umar.niazi@kcl.ac.uk
 # DESC: gene set enrichment analysis for the datasets
-# Date: 08/03/2018
+# Date: 14/02/2019
 
 
 ## set variables and source libraries

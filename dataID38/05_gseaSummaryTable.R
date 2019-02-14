@@ -1,7 +1,7 @@
 # File: 05_gseaSummaryTable.R
 # Auth: umar.niazi@kcl.ac.uk
 # DESC: merge the gsea results for all contrasts in one table
-# Date: 08/03/2018
+# Date: 14/02/2019
 
 
 lFiles = list.files('results/', pattern='*pathways_mSigDb_c2_*', full.names = T, ignore.case = F)
@@ -44,7 +44,7 @@ colnames(mMerged.down) = paste(colnames(mMerged.down), 'down', sep='-')
 mMerged.c2 = cbind(mMerged.up, mMerged.down)
 # reorder the columns
 colnames(mMerged.c2)
-o = c(1, 6, 2, 7, 3, 8, 4, 9, 5, 10)
+o = c(1, 3, 2, 4)
 mMerged.c2 = mMerged.c2[,o]
 
 # remove na sections
@@ -110,10 +110,10 @@ ldfData.up = ldfData[grepl(lFiles, pattern = 'upregulated')]
 ldfData.down = ldfData[grepl(lFiles, pattern = 'downregulated')]
 
 ## set the names for each contrast
-sn = c("IFNg-up", "IL17-up", "IL2217-up", "IL22-up", "TNFa-up" )
+sn = gsub('results//(\\w+)VsControl_.+', '\\1', names(ldfData.up))
 names(ldfData.up) = sn
 
-sn = c("IFNg-down",   "IL17-down",   "IL2217-down", "IL22-down",   "TNFa-down")
+sn = gsub('results//(\\w+)VsControl_.+', '\\1', names(ldfData.down))
 names(ldfData.down) = sn
 
 ## create a table/matrix of p-values
@@ -125,6 +125,8 @@ rownames(mMerged.down) = rownames(ldfData.down[[1]])
 
 # sanity check
 identical(rownames(mMerged.up), rownames(mMerged.down))
+colnames(mMerged.up) = paste(colnames(mMerged.up), 'up', sep='-')
+colnames(mMerged.down) = paste(colnames(mMerged.down), 'down', sep='-')
 
 mMerged.c5 = cbind(mMerged.up, mMerged.down)
 # reorder the columns
@@ -186,10 +188,10 @@ write.csv(dfMerged.c5, file='results/gsea_msigdb_c5_merged.xls')
 ## merge together into one dataframe
 # drop the group with most zeros
 table(dfMerged.c2$groups)
-dfMerged.c2.sub = dfMerged.c2[dfMerged.c2$groups != 14,]
+dfMerged.c2.sub = dfMerged.c2#[dfMerged.c2$groups != 14,]
 
 table(dfMerged.c5$groups)
-dfMerged.c5.sub = dfMerged.c5[dfMerged.c5$groups != 7,]
+dfMerged.c5.sub = dfMerged.c5#[dfMerged.c5$groups != 7,]
 
 dfMerged = rbind(dfMerged.c2.sub, dfMerged.c5.sub)
 dfMerged = droplevels.data.frame(dfMerged)
@@ -201,7 +203,7 @@ write.csv(dfMerged, file='results/gsea_msigdb_significant_c2_c5_merged.xls')
 ### just for a quick visual check, do not use for results
 df = dfMerged
 head(df)
-mMat = as.matrix(df[,c(1:10)])
+mMat = as.matrix(df[,c(1:4)])
 head(mMat)
 mMat = -10*log10(mMat+1e-16)
 g1 = df[,'groups']
@@ -221,7 +223,7 @@ library(RColorBrewer)
 aheatmap(mMat, annRow = ann, scale = 'none', Rowv = order(g2:g1), Colv=NA, cexRow=5, cexCol = 0.6, #labCol=c('C2vC1', 'K1vC1', 'K2vC2', 'K2vK1'), 
          col=c('white', brewer.pal(9, 'YlOrRd')))
 
-pdf('Results/gsea_msigdb_significant_merged.pdf')
+pdf('results/gsea_msigdb_significant_merged.pdf')
 aheatmap(mMat, annRow = ann, scale = 'none', Rowv = order(g2:g1), Colv=NA, cexRow=5, cexCol = 0.6, #labCol=c('C2vC1', 'K1vC1', 'K2vC2', 'K2vK1'), 
          col=c('white', brewer.pal(9, 'YlOrRd')))
 dev.off(dev.cur())
